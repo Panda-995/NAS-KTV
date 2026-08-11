@@ -2,16 +2,26 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
+# Install system dependencies: ffmpeg + build tools for compiling Python extensions
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libgomp1 \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip FIRST — old pip (24.0) cannot build wheels for scipy/numpy etc.
+RUN pip install --no-cache-dir --upgrade pip
 
 COPY pyproject.toml requirements.txt ./
 COPY app/ ./app/
 
-RUN pip install --no-cache-dir --retries 5 --timeout 120 torch torchaudio --index-url https://download.pytorch.org/whl/cpu \
-    && pip install --no-cache-dir --retries 5 --timeout 60 -r requirements.txt
+# Install PyTorch CPU-only first (largest package ~2GB, separate step for caching/retry)
+# Using PyTorch CPU stable channel with extended timeout
+RUN pip install --no-cache-dir --retries 5 --timeout 300 \
+    torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining dependencies (demucs will pull in numpy/scipy/etc.)
+RUN pip install --no-cache-dir --retries 5 --timeout 120 -r requirements.txt
 
 RUN mkdir -p /app/cache /app/data
 
