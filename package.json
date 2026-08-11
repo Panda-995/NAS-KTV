@@ -1,0 +1,20 @@
+{
+  "name": "nasktv",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r run build",
+    "dev": "start /B node scripts/dev-proxy.js & pnpm -r --parallel run dev",
+    "dev-proxy": "node scripts/dev-proxy.js",
+    "kill-ports": "node scripts/kill-ports.js",
+    "predev": "node scripts/kill-ports.js",
+    "lint": "pnpm -r run lint",
+    "clean": "pnpm -r run clean"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@8.1.1+sha1.f3d2cd2bddf0fa447a13b80e166d1b85a7823486",
+  "volta": {
+    "node": "20.10.0"
+  }
+}

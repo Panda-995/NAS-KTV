@@ -1,0 +1,59 @@
+# NASKTV Release pipeline
+#
+# Triggered by a `v*` tag (pushed automatically by release-please after the
+# "Release PR" is merged) or manually via workflow_dispatch (build-only artifacts).
+#
+# The GitHub Release (with notes generated from conventional commits) and the
+# `vX.Y.Z` tag are created by `.github/workflows/version.yml` (release-please).
+# This workflow only BUILDS and ATTACHES artifacts to that release:
+#   1. prep      : wait until the GitHub Release exists (race safety)
+#   2. docker    : build & push backend / separator / web to Aliyun ACR
+#   3. desktop   : build Win(x86/i686) / macOS(x64/arm64)  [no signing]
+#   4. android   : build arm64-v8a / armeabi-v7a APKs  [no signing]
+#
+# Docker images live in ACR (not release assets); desktop & android binaries
+# are attached to the GitHub Release.
+
+name: Release NASKTV
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prep:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for the GitHub Release to exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for i in $(seq 1 30); do
+            if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
+              echo "Release ${{ github.ref_name }} is ready."; exit 0
+            fi
+            echo "Waiting for release... ($i)"; sleep 10
+          done
+          echo "::error::GitHub Release ${{ github.ref_name }} not found after waiting"; exit 1
+
+  docker:
+    needs: prep
+    uses: ./.github/workflows/docker.yml
+    secrets: inherit
+
+  desktop:
+    needs: docker
+    uses: ./.github/workflows/desktop.yml
+    secrets: inherit
+
+  android:
+    needs: desktop
+    uses: ./.github/workflows/android.yml
+    secrets: inherit

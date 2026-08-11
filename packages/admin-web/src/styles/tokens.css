@@ -1,0 +1,129 @@
+/* Hallmark · component: design-system · genre: modern-minimal · theme: Cobalt
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * contrast: pass (AA on paper/ink pairings)
+ */
+:root {
+  /* Paper（背景层）*/
+  --color-paper: oklch(98% 0.005 240);
+  --color-paper-2: oklch(95% 0.008 240);
+  --color-paper-3: oklch(92% 0.01 240);
+
+  /* Ink（文字层）*/
+  --color-ink: oklch(20% 0.02 240);
+  --color-ink-2: oklch(40% 0.015 240);
+  --color-ink-3: oklch(60% 0.01 240);
+
+  /* Accent（强调色 - Cobalt Blue）*/
+  --color-accent: oklch(55% 0.18 250);
+  --color-accent-hover: oklch(50% 0.20 250);
+  --color-accent-soft: oklch(95% 0.03 250);
+
+  /* Border & Rule */
+  --color-border: oklch(90% 0.005 240);
+  --color-border-strong: oklch(80% 0.01 240);
+
+  /* Status Colors */
+  --color-success: oklch(60% 0.15 145);
+  --color-warning: oklch(70% 0.15 75);
+  --color-danger: oklch(58% 0.20 25);
+  --color-info: oklch(60% 0.15 230);
+
+  /* True black — 视频舞台背景（暗色场景）*/
+  --color-black: oklch(0% 0 0);
+
+  /* Fonts */
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Spacing (4pt scale) */
+  --space-xs: 0.5rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2rem;
+  --space-xl: 3rem;
+  --space-2xl: 4rem;
+
+  /* Type Scale */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-display: 2.25rem;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Easing & Duration */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --dur-slow: 400ms;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 2px 0 oklch(20% 0.02 240 / 0.05);
+  --shadow-md: 0 4px 6px -1px oklch(20% 0.02 240 / 0.08);
+  --shadow-lg: 0 10px 15px -3px oklch(20% 0.02 240 / 0.1);
+}
+
+/* Dashboard motion utilities
+ * fill-mode 用 backwards：动画结束后不锁定终态 transform，
+ * 让卡片的 hover:-translate-y-0.5 悬浮效果可以正常叠加 */
+@keyframes hall-dashboard-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-hall-in {
+  animation: hall-dashboard-in var(--dur-slow) var(--ease-out) backwards;
+}
+
+.animate-hall-in-delay-1 {
+  animation: hall-dashboard-in var(--dur-slow) var(--ease-out) backwards;
+  animation-delay: 80ms;
+}
+
+.animate-hall-in-delay-2 {
+  animation: hall-dashboard-in var(--dur-slow) var(--ease-out) backwards;
+  animation-delay: 160ms;
+}
+
+.animate-hall-in-delay-3 {
+  animation: hall-dashboard-in var(--dur-slow) var(--ease-out) backwards;
+  animation-delay: 240ms;
+}
+
+/* Chart draw-in: 折线描边入场（配合 SVG pathLength=1 归一化 dash 长度） */
+@keyframes hall-dash-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+.hall-line-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: hall-dash-draw 900ms var(--ease-out) forwards;
+}
+
+/* Chart fade-up: 面积/环形/柱状的淡入上移入场 */
+@keyframes hall-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hall-fade-up {
+  animation: hall-fade-up var(--dur-slow) var(--ease-out) backwards;
+}

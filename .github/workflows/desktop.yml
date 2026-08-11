@@ -1,0 +1,85 @@
+# Build NASKTV TV desktop apps (Windows / macOS) — NO code signing
+#
+# Reusable workflow: call from release.yml, or dispatch manually.
+#
+# Desktop matrix:
+#   Windows  x86_64-pc-windows-msvc (64)  +  i686-pc-windows-msvc (32)
+#   macOS    x86_64-apple-darwin (64) + aarch64-apple-darwin (64)
+#   NOTE: Linux desktop build removed by request.
+#   NOTE: macOS 32-bit is impossible (Apple dropped it in Catalina 2019).
+#   NOTE: No signing — outputs are unsigned sideload/debug builds.
+
+name: Build TV Desktop
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: windows-latest
+            target: i686-pc-windows-msvc
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.1.1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync version to tag
+        if: startsWith(github.ref_name, 'v')
+        shell: bash
+        run: node scripts/set-version.mjs "${GITHUB_REF_NAME#v}"
+
+      - name: Build with tauri-action
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI: true
+        with:
+          projectPath: packages/tv-app
+          args: --target ${{ matrix.target }}
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tv-desktop-${{ matrix.target }}
+          path: |
+            packages/tv-app/src-tauri/target/**/release/bundle/**/*
+          if-no-files-found: warn
+
+      - name: Upload to Release
+        if: github.event_name == 'workflow_call'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            packages/tv-app/src-tauri/target/**/release/bundle/**/*

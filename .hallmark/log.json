@@ -1,0 +1,79 @@
+[
+  {
+    "date": "2026-08-01",
+    "macrostructure": "stage & grid / timeline-led / waiting-room / video-stage overlay",
+    "theme": "Midnight",
+    "enrichment": "none",
+    "brief": "tv-app · redesign (scope: app, design-system: design.md)"
+  },
+  {
+    "date": "2026-07-30",
+    "macrostructure": "Catalogue",
+    "theme": "Coral",
+    "enrichment": "none",
+    "brief": "mobile-h5 · previous (Phase 4, replaced)"
+  },
+  {
+    "date": "2026-07-30",
+    "macrostructure": "Marquee Hero",
+    "theme": "Garden",
+    "enrichment": "none",
+    "brief": "mobile-h5 · editorial genre rewrite · Join page"
+  },
+  {
+    "date": "2026-07-30",
+    "macrostructure": "Ecosystem Index",
+    "theme": "Garden",
+    "enrichment": "none",
+    "brief": "mobile-h5 · Home page"
+  },
+  {
+    "date": "2026-07-30",
+    "macrostructure": "Index-First",
+    "theme": "Garden",
+    "enrichment": "none",
+    "brief": "mobile-h5 · Search page"
+  },
+  {
+    "date": "2026-07-30",
+    "macrostructure": "Catalogue",
+    "theme": "Garden",
+    "enrichment": "none",
+    "brief": "mobile-h5 · ArtistList page"
+  },
+  {
+    "date": "2026-07-30",
+    "macrostructure": "Long Document",
+    "theme": "Garden",
+    "enrichment": "none",
+    "brief": "mobile-h5 · ArtistDetail page"
+  },
+  {
+    "date": "2026-07-30",
+    "macrostructure": "Bento Grid",
+    "theme": "Garden",
+    "enrichment": "none",
+    "brief": "mobile-h5 · Categories page (new)"
+  },
+  {
+    "date": "2026-07-30",
+    "macrostructure": "Feature Stack",
+    "theme": "Garden",
+    "enrichment": "none",
+    "brief": "mobile-h5 · CategoryDetail page + bug fix"
+  },
+  {
+    "date": "2026-07-30",
+    "macrostructure": "Stat-Led",
+    "theme": "Garden",
+    "enrichment": "none",
+    "brief": "mobile-h5 · Queue page"
+  },
+  {
+    "date": "2026-07-30",
+    "macrostructure": "Photographic",
+    "theme": "Garden",
+    "enrichment": "none",
+    "brief": "mobile-h5 · NowPlaying page"
+  }
+]

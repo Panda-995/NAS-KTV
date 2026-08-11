@@ -1,0 +1,10 @@
+{
+  "name": "@nasktv/separator",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "setup": "python scripts/setup_venv.py",
+    "dev": "node scripts/run.cjs --reload",
+    "start": "node scripts/run.cjs"
+  }
+}

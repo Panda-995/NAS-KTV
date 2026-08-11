@@ -1,0 +1,77 @@
+services:
+  # ==================== 后端 API + WebSocket ====================
+  backend:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    ports:
+      - "3000:3000"
+      - "45678:45678/udp"
+    volumes:
+      - ./data/db:/app/data/db
+      - ./data/songs:/app/data/songs
+      - ./data/separation:/app/data/separation
+      - ./data/uploads:/app/data/uploads
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-change-me}
+      - DB_PATH=/app/data/db/nasktv.db
+      - SCAN_PATH=/app/data/songs
+      - SEPARATOR_SERVICE_URL=http://separator:8001
+      - SEPARATION_OUTPUT_DIR=/app/data/separation
+      - SEPARATION_CONCURRENCY=${SEPARATION_CONCURRENCY:-2}
+      - SEPARATION_AUTO_ENABLE=${SEPARATION_AUTO_ENABLE:-true}
+      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+      - AI_ENABLED=${AI_ENABLED:-false}
+      - AI_BASE_URL=${AI_BASE_URL:-https://api.openai.com/v1}
+      - AI_API_KEY=${AI_API_KEY:-}
+      - AI_MODEL=${AI_MODEL:-gpt-4o-mini}
+      - AI_PARSE_CONCURRENCY=${AI_PARSE_CONCURRENCY:-2}
+      - AI_AUTO_PARSE_AFTER_SCAN=${AI_AUTO_PARSE_AFTER_SCAN:-true}
+    depends_on:
+      separator:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/api/health', r => { process.exit(r.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ==================== 人声分离微服务（Python + Demucs）====================
+  separator:
+    build:
+      context: ./packages/separator
+      dockerfile: Dockerfile
+    container_name: nasktv-separator
+    volumes:
+      - ./data/songs:/app/data/songs:ro
+      - ./data/separation:/app/data/separation
+      - ./data/separator-cache:/app/cache
+    environment:
+      - TORCH_HOME=/app/cache
+      - DEMUCS_CACHE=/app/cache
+      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+      - SEPARATION_CONCURRENCY=${SEPARATION_CONCURRENCY:-2}
+      - PYTORCH_INDEX_URL=${PYTORCH_INDEX_URL:-https://download.pytorch.org/whl/cu124}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # ==================== 前端（admin-web + mobile-h5 合并托管 + 反代）====================
+  web:
+    build:
+      context: .
+      dockerfile: packages/web/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

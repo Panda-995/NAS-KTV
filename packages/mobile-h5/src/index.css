@@ -1,0 +1,60 @@
+@import './styles/tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: clip;
+  font-family: var(--font-body);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  /* 移动端禁止选中拖拽 */
+  -webkit-user-select: none;
+  user-select: none;
+  /* iOS 安全区 */
+  padding-top: env(safe-area-inset-top);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 允许输入框选中 */
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* 焦点 ring — 不可移除，出现必须即时 */
+*:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* 触摸目标 ≥ 44x44px */
+button, a, input, select, textarea {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* 数字显示对齐 */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* prefers-reduced-motion 支持 — 空间动效折叠为 ≤150ms 透明度 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

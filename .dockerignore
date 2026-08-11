@@ -1,0 +1,16 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.gitignore
+data/
+.env
+.env.local
+*.log
+.trae/
+.hallmark/
+.vscode/
+.idea/
+DEVELOPMENT_PLAN.md
+README.md
+*.md

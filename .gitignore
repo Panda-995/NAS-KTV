@@ -1,0 +1,41 @@
+# 环境变量配置文件
+.env
+
+# 运行时数据目录
+data/
+
+# Node.js 依赖目录
+node_modules/
+
+# 构建输出目录
+dist/
+
+# SQLite 数据库文件
+*.db
+
+# macOS 系统文件
+.DS_Store
+
+# IDE 配置文件
+.vscode/
+.idea/
+
+# 日志文件
+*.log
+
+# 分离结果目录
+data/separated/
+
+# WorkBuddy 本地工作数据与记忆（不进仓库）
+.workbuddy/
+
+# 本地签名密钥/密钥库（仅走 CI secrets，不入库）
+*.pfx
+*.keystore
+
+# Python 字节码缓存
+__pycache__/
+*.pyc
+
+# 源码映射 / 编译产物（shared 等）
+*.map

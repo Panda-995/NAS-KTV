@@ -1,0 +1,99 @@
+/* Hallmark · genre: editorial · theme: Garden · mobile-h5 design system
+ * paper-band: light (>85%) · display: classical-serif · accent: leaf-green ~145°
+ * font-pairing: Instrument Serif + Noto Serif SC (display) · Inter + system-ui (body) · JetBrains Mono (outlier)
+ * states: default · hover · focus-visible · active · disabled · loading · error · success
+ * contrast: pass (≥4.5:1)
+ * designed-as-app: all pages share this token set; per-page variation lives in structure only
+ */
+
+:root {
+  /* Paper — warm cream, tinted toward green */
+  --color-paper: oklch(97% 0.008 145);
+  --color-paper-2: oklch(94% 0.012 145);
+  --color-paper-3: oklch(91% 0.016 145);
+
+  /* Ink — deep warm green-grey */
+  --color-ink: oklch(18% 0.02 145);
+  --color-ink-2: oklch(38% 0.015 145);
+  --color-ink-3: oklch(58% 0.01 145);
+
+  /* Accent — leaf green, soft and natural */
+  --color-accent: oklch(55% 0.16 145);
+  --color-accent-hover: oklch(50% 0.18 145);
+  --color-accent-soft: oklch(94% 0.04 145);
+  --color-on-accent: oklch(99% 0.005 145);
+
+  /* Semantic */
+  --color-danger: oklch(55% 0.22 25);
+  --color-danger-soft: oklch(94% 0.025 25);
+  --color-warning: oklch(72% 0.16 85);
+  --color-warning-soft: oklch(96% 0.02 85);
+  --color-success: oklch(60% 0.16 145);
+  --color-success-soft: oklch(94% 0.04 145);
+  --color-error: var(--color-danger);
+
+  /* Focus ring — accent at ≥3:1 contrast */
+  --color-focus: oklch(50% 0.18 145);
+  --color-border: oklch(88% 0.01 145);
+
+  /* Typography — editorial pairing with CJK fallback */
+  --font-display: 'Instrument Serif', 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+  --font-body: 'Inter', 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* Spacing — 4pt scale */
+  --space-3xs: 2px;
+  --space-2xs: 4px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  /* Type scale — mobile optimized */
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --text-4xl: 36px;
+  --text-display: clamp(2rem, 8vw + 0.5rem, 3rem);
+
+  /* Border radius */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Easing */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* Shadows — tinted toward green, whisper-grade only */
+  --shadow-sm: 0 1px 2px oklch(20% 0.02 145 / 0.05);
+  --shadow-md: 0 4px 6px oklch(20% 0.02 145 / 0.07);
+  --shadow-lg: 0 10px 15px oklch(20% 0.02 145 / 0.1);
+
+  /* Duration */
+  --dur-micro: 120ms;
+  --dur-fast: 150ms;
+  --dur-short: 220ms;
+  --dur-base: 250ms;
+  --dur-slow: 400ms;
+  --dur-long: 420ms;
+
+  /* Z-index — named scale */
+  --z-base: 1;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 400;
+  --z-toast: 500;
+}

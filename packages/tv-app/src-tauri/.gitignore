@@ -1,0 +1,10 @@
+# Rust 编译产物（3.5G+，禁止入库）
+/target
+
+# Android Gradle 构建缓存（保留 gradle 源码与 wrapper，仅忽略构建输出）
+/gen/android/.gradle
+/gen/android/build
+/gen/android/app/build
+/gen/android/buildSrc/.gradle
+/gen/android/buildSrc/build
+/gen/android/local.properties

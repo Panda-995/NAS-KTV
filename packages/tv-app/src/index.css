@@ -1,0 +1,42 @@
+@import './styles/tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  overflow-x: clip;
+  font-family: var(--font-body);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 10-foot UI 基础字号 */
+body {
+  font-size: var(--text-base);
+  line-height: 1.5;
+}
+
+/* hallmark: atmospheric / 右上角扫码点歌徽标（半透明紧凑，不遮挡 MV 主体） */
+.qr-badge {
+  background: color-mix(in oklab, var(--color-paper-2) 88%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+/* 焦点 ring - D-pad 导航支持 */
+*:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* prefers-reduced-motion 支持 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

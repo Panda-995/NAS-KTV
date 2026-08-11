@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NASKTV 电视端配置</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #0d0f16; color: #e8eaf0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .card { background: #171a24; border: 1px solid #2a2f3d; border-radius: 16px; padding: 28px; width: 100%; max-width: 420px; }
+  h1 { font-size: 20px; margin-bottom: 8px; }
+  p { color: #9aa1b5; font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
+  input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid #2a2f3d; background: #0d0f16; color: #e8eaf0; font-size: 15px; margin-bottom: 14px; }
+  input:focus { outline: 2px solid #7c9dff; border-color: transparent; }
+  button { width: 100%; padding: 12px; border-radius: 10px; border: none; background: #7c9dff; color: #0d0f16; font-size: 15px; font-weight: 600; cursor: pointer; }
+  button:active { opacity: .85; }
+  #status { margin-top: 14px; font-size: 13px; color: #9aa1b5; text-align: center; }
+  #status.ok { color: #4cd97b; }
+  #status.err { color: #ff6b6b; }
+  .discovered { margin-bottom: 20px; border-top: 1px solid #2a2f3d; padding-top: 18px; }
+  .discovered-title { font-size: 13px; color: #9aa1b5; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+  .discovered-title .dot { width: 8px; height: 8px; border-radius: 50%; background: #4cd97b; display: inline-block; margin-right: 6px; animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+  .server-list { display: flex; flex-direction: column; gap: 10px; }
+  .server-item { padding: 12px 14px; border-radius: 10px; border: 1px solid #2a2f3d; background: #0d0f16; cursor: pointer; transition: border-color .15s; }
+  .server-item:hover { border-color: #7c9dff; }
+  .server-item:active { border-color: #7c9dff; }
+  .server-item .s-name { font-size: 15px; font-weight: 600; color: #e8eaf0; }
+  .server-item .s-url { font-size: 12px; color: #9aa1b5; margin-top: 4px; word-break: break-all; font-family: monospace; }
+  .scan-hint { font-size: 13px; color: #9aa1b5; padding: 8px 0; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>NASKTV 电视端配置</h1>
+  <p>请填写后端服务地址（如 http://192.168.1.100:3000 或 http://nas:8080），保存后电视将自动连接。</p>
+
+  <div id="discovered" class="discovered">
+    <div class="discovered-title"><span><span class="dot"></span>局域网发现</span></div>
+    <div id="server-list" class="server-list"></div>
+    <div id="scan-hint" class="scan-hint">正在扫描局域网中的 NASKTV 服务…</div>
+  </div>
+
+  <input id="url" type="text" inputmode="url" autocomplete="off" placeholder="http://192.168.1.100:3000">
+  <button id="save">保存并连接</button>
+  <div id="status"></div>
+</div>
+<script>
+  var btn = document.getElementById('save');
+  var input = document.getElementById('url');
+  var statusEl = document.getElementById('status');
+  var listEl = document.getElementById('server-list');
+  var scanHint = document.getElementById('scan-hint');
+
+  function save(apiUrl) {
+    apiUrl = (apiUrl || '').trim();
+    if (!apiUrl) {
+      statusEl.textContent = '请输入后端地址';
+      statusEl.className = 'err';
+      return;
+    }
+    statusEl.textContent = '正在提交...';
+    statusEl.className = '';
+    fetch('/p', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiUrl: apiUrl })
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      if (data.success) {
+        statusEl.textContent = '已提交，请查看电视屏幕确认连接结果';
+        statusEl.className = 'ok';
+      } else {
+        statusEl.textContent = '提交失败，请重试';
+        statusEl.className = 'err';
+      }
+    }).catch(function () {
+      statusEl.textContent = '提交失败，请重试';
+      statusEl.className = 'err';
+    });
+  }
+
+  function renderServers(servers) {
+    listEl.innerHTML = '';
+    if (!servers || servers.length === 0) {
+      scanHint.style.display = 'block';
+      scanHint.textContent = '未扫描到服务，请手动输入下方地址，或稍候自动刷新';
+      return;
+    }
+    scanHint.style.display = 'none';
+    servers.forEach(function (s) {
+      var item = document.createElement('div');
+      item.className = 'server-item';
+      var name = document.createElement('div');
+      name.className = 's-name';
+      name.textContent = s.name || 'NASKTV';
+      var url = document.createElement('div');
+      url.className = 's-url';
+      url.textContent = s.apiBaseUrl;
+      item.appendChild(name);
+      item.appendChild(url);
+      item.addEventListener('click', function () { save(s.apiBaseUrl); });
+      listEl.appendChild(item);
+    });
+  }
+
+  function loadServers() {
+    fetch('/servers', { cache: 'no-store' })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        // 按 apiBaseUrl 去重（保留首个）
+        var seen = {};
+        var uniq = [];
+        (data || []).forEach(function (s) {
+          if (!seen[s.apiBaseUrl]) { seen[s.apiBaseUrl] = true; uniq.push(s); }
+        });
+        renderServers(uniq);
+      })
+      .catch(function () { renderServers([]); });
+  }
+
+  btn.addEventListener('click', function () { save(input.value); });
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') save(input.value); });
+
+  loadServers();
+  setInterval(loadServers, 3000);
+</script>
+</body>
+</html>

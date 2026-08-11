@@ -1,0 +1,33 @@
+# Version Management (release-please)
+#
+# Watches conventional commits on the default branch and:
+#   - opens / updates a "Release vX.Y.Z" pull request
+#   - on merge: bumps the version (SemVer), updates CHANGELOG.md,
+#     creates the GitHub Release (notes generated from commits), and pushes a `vX.Y.Z` tag
+#
+# Commit message convention (conventional commits):
+#   feat: new feature        -> minor bump (pre-1.0) / minor
+#   fix: bug fix             -> patch bump
+#   BREAKING CHANGE / !:     -> major bump
+#   chore/docs/refactor/perf -> no version bump (still listed in notes)
+#
+# The `vX.Y.Z` tag then triggers release.yml to build & publish the artifacts.
+
+name: Version Management
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json

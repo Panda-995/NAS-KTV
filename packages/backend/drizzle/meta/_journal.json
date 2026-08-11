@@ -1,0 +1,88 @@
+{
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1722300000000,
+      "tag": "0000_initial",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1722400000000,
+      "tag": "0001_add_separator_task_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1722500000000,
+      "tag": "0002_ai_parse_logs",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1754035200000,
+      "tag": "0003_scan_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1754121600000,
+      "tag": "0004_song_artists",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1754380800000,
+      "tag": "0005_add_file_hash",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1754467200000,
+      "tag": "0006_dedup",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1754553600000,
+      "tag": "0007_dedup_scan_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1786001753421,
+      "tag": "0008_artist_category_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1786002000000,
+      "tag": "0009_scan_jobs_errors",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1786003000000,
+      "tag": "0010_scan_results",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1786004000000,
+      "tag": "0011_separation_retry_count",
+      "breakpoints": true
+    }
+  ]
+}
