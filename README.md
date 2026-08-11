@@ -295,6 +295,8 @@ docker compose down
 
 本项目使用 **GitHub Actions + release-please** 实现全自动的版本管理、打包与发布。打 `v*` tag 时自动构建 Docker 镜像、TV 桌面端与安卓端，并把产物挂到 GitHub Release。
 
+> 完整的密钥与环境变量清单（含 ACR 配置、自动变量、已移除的签名密钥、与后端运行时变量的区别）见 [.github/CI.md](./.github/CI.md)。
+
 ### 工作流
 
 | 文件 | 触发 | 作用 |
