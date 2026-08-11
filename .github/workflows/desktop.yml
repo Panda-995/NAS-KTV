@@ -1,6 +1,6 @@
 # Build NASKTV TV desktop apps (Windows / macOS) — NO code signing
 #
-# Reusable workflow: call from release.yml, or dispatch manually.
+# Reusable workflow: call from release.yml (with `tag`), or dispatch manually.
 #
 # Desktop matrix:
 #   Windows  x86_64-pc-windows-msvc (64)  +  i686-pc-windows-msvc (32)
@@ -13,7 +13,16 @@ name: Build TV Desktop
 
 on:
   workflow_call:
+    inputs:
+      tag:
+        type: string
+        default: ''
   workflow_dispatch:
+    inputs:
+      tag:
+        type: string
+        default: ''
+        required: false
 
 jobs:
   build:
@@ -54,9 +63,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Sync version to tag
-        if: startsWith(github.ref_name, 'v')
+        if: ${{ inputs.tag != '' }}
         shell: bash
-        run: node scripts/set-version.mjs "${GITHUB_REF_NAME#v}"
+        env:
+          TAG: ${{ inputs.tag }}
+        run: node scripts/set-version.mjs "${TAG#v}"
 
       - name: Build with tauri-action
         uses: tauri-apps/tauri-action@v0
@@ -77,9 +88,9 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload to Release
-        if: github.event_name == 'workflow_call'
+        if: ${{ inputs.tag != '' }}
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ inputs.tag }}
           files: |
             packages/tv-app/src-tauri/target/**/release/bundle/**/*

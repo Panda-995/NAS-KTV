@@ -1,6 +1,6 @@
 # Build & push NASKTV Docker images (backend / separator / web)
 #
-# Reusable workflow: call from release.yml, or dispatch manually.
+# Reusable workflow: call from release.yml (with `tag`), or dispatch manually.
 #
 # Required repo/environment secrets:
 #   ALIYUN_ACR_REGISTRY   e.g. registry.cn-hangzhou.aliyuncs.com
@@ -19,7 +19,16 @@ name: Build Docker Images
 
 on:
   workflow_call:
+    inputs:
+      tag:
+        type: string
+        default: ''
   workflow_dispatch:
+    inputs:
+      tag:
+        type: string
+        default: ''
+        required: false
 
 jobs:
   build:
@@ -42,9 +51,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Sync version to tag
-        if: startsWith(github.ref_name, 'v')
+        if: ${{ inputs.tag != '' }}
         shell: bash
-        run: node scripts/set-version.mjs "${GITHUB_REF_NAME#v}"
+        env:
+          TAG: ${{ inputs.tag }}
+        run: node scripts/set-version.mjs "${TAG#v}"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -64,9 +75,10 @@ jobs:
         env:
           REGISTRY: ${{ secrets.ALIYUN_ACR_REGISTRY }}
           NAMESPACE: ${{ secrets.ALIYUN_ACR_NAMESPACE }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         shell: bash
         run: |
-          VER="${GITHUB_REF_NAME#v}"
+          VER="${TAG#v}"
           BASE="${REGISTRY}/${NAMESPACE}/nasktv"
           {
             echo "tags<<EOF"

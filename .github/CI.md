@@ -10,7 +10,7 @@
 | `docker.yml` | 被 `release.yml` 调用 / 手动 | 构建统一仓库 `nasktv` 的多架构镜像（`backend`/`separator`/`web` 用 tag 区分）并推阿里云 ACR |
 | `desktop.yml` | 被 `release.yml` 调用 / 手动 | TV 桌面端：Windows(64/32) + macOS(64)，**未签名** |
 | `android.yml` | 被 `release.yml` 调用 / 手动 | TV 安卓端：`arm64-v8a`(64) / `armeabi-v7a`(32) APK，**未签名** |
-| `release.yml` | 打 `v*` tag | 编排器：等 Release 就绪后串行调用 docker → desktop → android，挂产物到 Release |
+| `release.yml` | release-please 发布 Release（`release: published`） | 编排器：串行调用 docker → desktop → android，把产物挂到该 Release（tag 名显式传给子工作流） |
 
 > macOS 物理上无 32 位；Linux 桌面端已按需求移除；所有产物当前均为未签名侧载包。
 

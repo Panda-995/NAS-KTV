@@ -1,6 +1,6 @@
 # Build NASKTV TV Android APKs (arm64-v8a 64-bit / armeabi-v7a 32-bit) — NO signing
 #
-# Reusable workflow: call from release.yml, or dispatch manually.
+# Reusable workflow: call from release.yml (with `tag`), or dispatch manually.
 #
 # Outputs are unsigned debug/sideload APKs (no release keystore).
 
@@ -8,7 +8,16 @@ name: Build TV Android
 
 on:
   workflow_call:
+    inputs:
+      tag:
+        type: string
+        default: ''
   workflow_dispatch:
+    inputs:
+      tag:
+        type: string
+        default: ''
+        required: false
 
 jobs:
   build:
@@ -60,9 +69,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Sync version to tag
-        if: startsWith(github.ref_name, 'v')
+        if: ${{ inputs.tag != '' }}
         shell: bash
-        run: node scripts/set-version.mjs "${GITHUB_REF_NAME#v}"
+        env:
+          TAG: ${{ inputs.tag }}
+        run: node scripts/set-version.mjs "${TAG#v}"
 
       - name: Build APK with tauri-action
         uses: tauri-apps/tauri-action@v0
@@ -80,10 +91,10 @@ jobs:
           cp "$UNSIGNED" "nasktv-tv-${{ matrix.arch }}.apk"
 
       - name: Upload to Release
-        if: github.event_name == 'workflow_call'
+        if: ${{ inputs.tag != '' }}
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ inputs.tag }}
           files: nasktv-tv-${{ matrix.arch }}.apk
 
       - name: Upload artifact
