@@ -22,7 +22,7 @@ COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_module
 COPY tsconfig.base.json ./
 COPY packages/backend ./packages/backend/
 COPY packages/shared ./packages/shared/
-RUN pnpm --filter @nasktv/backend exec tsc --noEmit --rootDir ../..
+RUN pnpm --filter @nasktv/backend exec tsc --noEmit
 
 FROM node:20-alpine AS production
 RUN addgroup --system --gid 1001 nasktv && \
