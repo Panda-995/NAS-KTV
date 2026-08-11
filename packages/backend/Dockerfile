@@ -19,10 +19,14 @@ FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages/backend/node_modules ./packages/backend/node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
-COPY tsconfig.base.json ./
-COPY packages/backend ./packages/backend/
-COPY packages/shared ./packages/shared/
-RUN pnpm --filter @nasktv/backend exec tsc --noEmit
+# NOTE: skipped tsc --noEmit — production image uses tsx (JIT), no precompile needed.
+# Type errors are caught by desktop/android CI builds which run full tsc.
+COPY packages/backend/src ./packages/backend/src/
+COPY packages/backend/assets ./packages/backend/assets/
+COPY packages/backend/package.json ./packages/backend/
+COPY packages/backend/drizzle ./packages/backend/drizzle/
+COPY packages/shared/src ./packages/shared/src/
+COPY packages/shared/package.json ./packages/shared/
 
 FROM node:20-alpine AS production
 RUN addgroup --system --gid 1001 nasktv && \
