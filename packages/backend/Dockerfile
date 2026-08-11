@@ -6,14 +6,14 @@ FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/backend/package.json ./packages/backend/
 COPY packages/shared/package.json ./packages/shared/
-RUN pnpm install --frozen-lockfile --filter @nasktv/backend...
+RUN pnpm install --filter @nasktv/backend...
 
 # 生产依赖：仅安装 dependencies（不含 devDependencies），大幅缩小镜像
 FROM base AS prod-deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/backend/package.json ./packages/backend/
 COPY packages/shared/package.json ./packages/shared/
-RUN pnpm install --frozen-lockfile --prod --filter @nasktv/backend...
+RUN pnpm install --prod --filter @nasktv/backend...
 
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules

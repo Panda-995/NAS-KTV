@@ -4,7 +4,7 @@ RUN npm install -g pnpm@8.1.1
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/admin-web/package.json ./packages/admin-web/
-RUN pnpm install --frozen-lockfile --filter @nasktv/admin-web
+RUN pnpm install --filter @nasktv/admin-web
 COPY tsconfig.base.json ./
 COPY packages/admin-web ./packages/admin-web/
 RUN pnpm --filter @nasktv/admin-web build
@@ -16,7 +16,7 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/mobile-h5/package.json ./packages/mobile-h5/
 COPY packages/shared/package.json ./packages/shared/
-RUN pnpm install --frozen-lockfile --filter @nasktv/mobile-h5
+RUN pnpm install --filter @nasktv/mobile-h5
 COPY tsconfig.base.json ./
 COPY packages/mobile-h5 ./packages/mobile-h5/
 COPY packages/shared ./packages/shared/
