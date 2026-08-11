@@ -8,10 +8,11 @@
 #   ALIYUN_ACR_PASSWORD   ACR login password (usually RAM AccessKeySecret)
 #   ALIYUN_ACR_NAMESPACE  image namespace, e.g. nasktv
 #
-# Images are pushed to:
-#   <REGISTRY>/<NAMESPACE>/backend:<semver>
-#   <REGISTRY>/<NAMESPACE>/separator:<semver>
-#   <REGISTRY>/<NAMESPACE>/web:<semver>
+# Images are pushed to a SINGLE repository, distinguished by tag prefix:
+#   <REGISTRY>/<NAMESPACE>/nasktv:backend-<semver>
+#   <REGISTRY>/<NAMESPACE>/nasktv:separator-<semver>
+#   <REGISTRY>/<NAMESPACE>/nasktv:web-<semver>
+# Each also gets a <service>-<major>.<minor> tag (e.g. backend-0.2).
 # Multi-arch: linux/amd64 + linux/arm64 (separator is CPU torch, safe for both).
 
 name: Build Docker Images
@@ -58,15 +59,21 @@ jobs:
           username: ${{ secrets.ALIYUN_ACR_USERNAME }}
           password: ${{ secrets.ALIYUN_ACR_PASSWORD }}
 
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ secrets.ALIYUN_ACR_REGISTRY }}/${{ secrets.ALIYUN_ACR_NAMESPACE }}/${{ matrix.name }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Compute image tags
+        id: tags
+        env:
+          REGISTRY: ${{ secrets.ALIYUN_ACR_REGISTRY }}
+          NAMESPACE: ${{ secrets.ALIYUN_ACR_NAMESPACE }}
+        shell: bash
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          BASE="${REGISTRY}/${NAMESPACE}/nasktv"
+          {
+            echo "tags<<EOF"
+            echo "${BASE}:${{ matrix.name }}-${VER}"
+            echo "${BASE}:${{ matrix.name }}-${VER%.*}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -75,7 +82,6 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -7,7 +7,7 @@
 | 文件 | 触发 | 作用 |
 |------|------|------|
 | `version.yml` | 推送 `main` | release-please：按约定式提交算版本、维护 CHANGELOG、开 Release PR、合并后打 tag + 建 Release |
-| `docker.yml` | 被 `release.yml` 调用 / 手动 | 构建 `backend` / `separator` / `web` 多架构镜像并推阿里云 ACR |
+| `docker.yml` | 被 `release.yml` 调用 / 手动 | 构建统一仓库 `nasktv` 的多架构镜像（`backend`/`separator`/`web` 用 tag 区分）并推阿里云 ACR |
 | `desktop.yml` | 被 `release.yml` 调用 / 手动 | TV 桌面端：Windows(64/32) + macOS(64)，**未签名** |
 | `android.yml` | 被 `release.yml` 调用 / 手动 | TV 安卓端：`arm64-v8a`(64) / `armeabi-v7a`(32) APK，**未签名** |
 | `release.yml` | 打 `v*` tag | 编排器：等 Release 就绪后串行调用 docker → desktop → android，挂产物到 Release |
@@ -31,13 +31,13 @@
 
 **未配置的后果**：`docker.yml` 的登录/推送步骤会失败，镜像不会发布；但桌面端、安卓端构建不受影响（可单独出包）。
 
-**镜像推送地址**（由上述变量拼成）：
+**镜像推送地址**（三个元件推到同一个镜像仓库 `nasktv`，用 tag 前缀区分）：
 ```
-<ALIYUN_ACR_REGISTRY>/<ALIYUN_ACR_NAMESPACE>/backend:<semver>
-<ALIYUN_ACR_REGISTRY>/<ALIYUN_ACR_NAMESPACE>/separator:<semver>
-<ALIYUN_ACR_REGISTRY>/<ALIYUN_ACR_NAMESPACE>/web:<semver>
+<ALIYUN_ACR_REGISTRY>/<ALIYUN_ACR_NAMESPACE>/nasktv:backend-<semver>
+<ALIYUN_ACR_REGISTRY>/<ALIYUN_ACR_NAMESPACE>/nasktv:separator-<semver>
+<ALIYUN_ACR_REGISTRY>/<ALIYUN_ACR_NAMESPACE>/nasktv:web-<semver>
 ```
-标签策略：`v0.2.0` → `0.2.0` + `0.2` + `latest`（多架构 `linux/amd64` + `linux/arm64`）。
+标签策略：以 `v0.2.0` 为例，每个元件生成两个 tag —— `backend-0.2.0` / `backend-0.2`、`separator-0.2.0` / `separator-0.2`、`web-0.2.0` / `web-0.2`（多架构 `linux/amd64` + `linux/arm64`）。不同元件 tag 前缀不同，不会互相覆盖。
 
 ---
 
