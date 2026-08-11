@@ -1,6 +1,6 @@
 # Stage 1: base with pnpm
 FROM node:20-alpine AS base
-RUN npm install -g pnpm@8.1.1
+RUN npm install -g pnpm@9
 WORKDIR /app
 
 # Stage 2: install dependencies

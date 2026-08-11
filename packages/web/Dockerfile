@@ -1,6 +1,6 @@
 # Stage 1: build admin-web
 FROM node:20-alpine AS admin-build
-RUN npm install -g pnpm@8.1.1
+RUN npm install -g pnpm@9
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/admin-web/package.json ./packages/admin-web/
@@ -11,7 +11,7 @@ RUN pnpm --filter @nasktv/admin-web build
 
 # Stage 2: build mobile-h5
 FROM node:20-alpine AS h5-build
-RUN npm install -g pnpm@8.1.1
+RUN npm install -g pnpm@9
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/mobile-h5/package.json ./packages/mobile-h5/

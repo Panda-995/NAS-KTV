@@ -1,5 +1,5 @@
 FROM node:20-alpine AS base
-RUN npm install -g pnpm@8.1.1
+RUN npm install -g pnpm@9
 WORKDIR /app
 
 FROM base AS deps
