@@ -2,6 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
+
 # Install system dependencies: ffmpeg + build tools for compiling Python extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
