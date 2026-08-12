@@ -26,18 +26,19 @@ permissions:
 
 concurrency:
   group: docker-${{ github.ref }}-${{ inputs.tag }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: Build ${{ matrix.service.name }} (${{ matrix.architecture.name }})
+    runs-on: ${{ matrix.architecture.runner }}
     strategy:
       fail-fast: false
       matrix:
-        include:
+        service:
           - name: backend
             context: .
             dockerfile: packages/backend/Dockerfile
@@ -50,12 +51,16 @@ jobs:
             context: .
             dockerfile: packages/web/Dockerfile
             image: nas-ktv-web
+        architecture:
+          - name: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - name: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
@@ -67,10 +72,62 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute image tags
-        id: tags
+      - name: Compute image name
+        id: image
         env:
-          IMAGE_NAME: ${{ matrix.image }}
+          IMAGE_NAME: ${{ matrix.service.image }}
+          ARCHITECTURE: ${{ matrix.architecture.name }}
+        shell: bash
+        run: |
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          IMAGE="${REGISTRY}/${OWNER}/${IMAGE_NAME}"
+          echo "name=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "tag=${IMAGE}:build-${GITHUB_SHA::12}-${ARCHITECTURE}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push architecture image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.service.context }}
+          file: ${{ matrix.service.dockerfile }}
+          platforms: ${{ matrix.architecture.platform }}
+          push: true
+          tags: ${{ steps.image.outputs.tag }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=NASKTV ${{ matrix.service.name }}
+            org.opencontainers.image.licenses=MIT
+          cache-from: type=gha,scope=${{ matrix.service.name }}-${{ matrix.architecture.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service.name }}-${{ matrix.architecture.name }}
+
+  publish:
+    name: Publish ${{ matrix.service.name }} manifest
+    needs: build
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - name: backend
+            image: nas-ktv-backend
+          - name: separator
+            image: nas-ktv-separator
+          - name: web
+            image: nas-ktv-web
+    steps:
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and verify multi-architecture manifest
+        env:
+          IMAGE_NAME: ${{ matrix.service.image }}
           REQUESTED_TAG: ${{ inputs.tag }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         shell: bash
@@ -99,25 +156,18 @@ jobs:
             TAGS+=("${IMAGE}:sha-${GITHUB_SHA::12}")
           fi
 
-          {
-            echo "image=${IMAGE}"
-            echo "tags<<EOF"
-            printf '%s\n' "${TAGS[@]}"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          CREATE_ARGS=()
+          for TAG in "${TAGS[@]}"; do
+            CREATE_ARGS+=(--tag "${TAG}")
+          done
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.tags.outputs.tags }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=NASKTV ${{ matrix.name }}
-            org.opencontainers.image.licenses=MIT
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+          docker buildx imagetools create \
+            "${CREATE_ARGS[@]}" \
+            "${IMAGE}:build-${GITHUB_SHA::12}-amd64" \
+            "${IMAGE}:build-${GITHUB_SHA::12}-arm64"
+
+          MANIFEST="$(docker buildx imagetools inspect --raw "${TAGS[0]}")"
+          jq -e '
+            any(.manifests[]; .platform.os == "linux" and .platform.architecture == "amd64") and
+            any(.manifests[]; .platform.os == "linux" and .platform.architecture == "arm64")
+          ' <<< "${MANIFEST}"
