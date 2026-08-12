@@ -39,8 +39,10 @@ COPY --from=build --chown=nasktv:nasktv /app/packages/backend/drizzle ./packages
 COPY --from=build --chown=nasktv:nasktv /app/packages/shared/src ./packages/shared/src
 COPY --from=build --chown=nasktv:nasktv /app/packages/shared/package.json ./packages/shared/
 COPY --from=prod-deps --chown=nasktv:nasktv /app/node_modules ./node_modules
+COPY --from=prod-deps --chown=nasktv:nasktv /app/packages/backend/node_modules ./packages/backend/node_modules
+COPY --from=prod-deps --chown=nasktv:nasktv /app/packages/shared/node_modules ./packages/shared/node_modules
 RUN mkdir -p data/db data/songs data/separation data/uploads && \
     chown -R nasktv:nasktv data
 USER nasktv
 EXPOSE 3000
-CMD ["node_modules/.bin/tsx", "packages/backend/src/index.ts"]
+CMD ["packages/backend/node_modules/.bin/tsx", "packages/backend/src/index.ts"]

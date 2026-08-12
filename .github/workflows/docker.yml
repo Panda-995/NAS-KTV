@@ -100,6 +100,32 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service.name }}-${{ matrix.architecture.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service.name }}-${{ matrix.architecture.name }}
 
+      - name: Verify backend image starts
+        if: matrix.service.name == 'backend'
+        env:
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        shell: bash
+        run: |
+          CONTAINER_ID="$(docker run --detach --env JWT_SECRET=ci-smoke-test "${IMAGE_TAG}")"
+          trap 'docker rm --force "${CONTAINER_ID}" >/dev/null 2>&1 || true' EXIT
+
+          for ATTEMPT in {1..30}; do
+            if [[ "$(docker inspect --format '{{.State.Running}}' "${CONTAINER_ID}")" != "true" ]]; then
+              docker logs "${CONTAINER_ID}"
+              exit 1
+            fi
+
+            if docker exec "${CONTAINER_ID}" node -e \
+              "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; then
+              exit 0
+            fi
+
+            sleep 2
+          done
+
+          docker logs "${CONTAINER_ID}"
+          exit 1
+
   publish:
     name: Publish ${{ matrix.service.name }} manifest
     needs: build
