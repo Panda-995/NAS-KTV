@@ -1,10 +1,16 @@
-import { exists, readTextFile, writeTextFile, mkdir, remove } from '@tauri-apps/plugin-fs';
-import { appDataDir, join } from '@tauri-apps/api/path';
+import {
+  BaseDirectory,
+  exists,
+  readTextFile,
+  writeTextFile,
+  remove,
+} from '@tauri-apps/plugin-fs';
 import { isTauri } from '@tauri-apps/api/core';
 
 const DEVICE_ID_FILE = 'device-id.txt';
 const DEVICE_ID_STORAGE_KEY = 'nasktv:device-id';
 const ROOM_CODE_STORAGE_KEY = 'nasktv:room-code';
+const APP_DATA_OPTIONS = { baseDir: BaseDirectory.AppData } as const;
 
 // 检测当前是否运行在 Tauri 外壳内
 function isTauriEnvironment(): boolean {
@@ -17,32 +23,28 @@ export async function getDeviceId(): Promise<string> {
     return getDeviceIdFromLocalStorage();
   }
 
-  // Tauri 环境：用文件系统持久化
-  const dataDir = await appDataDir();
-  const filePath = await join(dataDir, DEVICE_ID_FILE);
-
   try {
-    if (await exists(filePath)) {
-      return await readTextFile(filePath);
+    if (await exists(DEVICE_ID_FILE, APP_DATA_OPTIONS)) {
+      return await readTextFile(DEVICE_ID_FILE, APP_DATA_OPTIONS);
     }
   } catch (e) {
-    // 文件不存在或读取失败，继续生成新 ID
+    console.error('Failed to load device ID file:', e);
+  }
+
+  const storedDeviceId = localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+  if (storedDeviceId) {
+    return storedDeviceId;
   }
 
   // 生成新 UUID v4
   const deviceId = generateUUID();
 
   try {
-    // 确保目录存在
-    try {
-      await mkdir(dataDir, { recursive: true });
-    } catch (e) {
-      // 目录可能已存在
-    }
-    await writeTextFile(filePath, deviceId);
+    await writeTextFile(DEVICE_ID_FILE, deviceId, APP_DATA_OPTIONS);
   } catch (e) {
     console.error('Failed to persist device ID:', e);
   }
+  localStorage.setItem(DEVICE_ID_STORAGE_KEY, deviceId);
 
   return deviceId;
 }
@@ -53,18 +55,16 @@ export async function getDeviceId(): Promise<string> {
 export async function clearDeviceId(): Promise<void> {
   // 同时清除缓存的 roomCode
   clearRoomCode();
+  localStorage.removeItem(DEVICE_ID_STORAGE_KEY);
 
   if (!isTauriEnvironment()) {
-    localStorage.removeItem(DEVICE_ID_STORAGE_KEY);
     return;
   }
 
   // Tauri 环境：删除文件
   try {
-    const dataDir = await appDataDir();
-    const filePath = await join(dataDir, DEVICE_ID_FILE);
-    if (await exists(filePath)) {
-      await remove(filePath);
+    if (await exists(DEVICE_ID_FILE, APP_DATA_OPTIONS)) {
+      await remove(DEVICE_ID_FILE, APP_DATA_OPTIONS);
     }
   } catch (e) {
     console.error('Failed to clear device ID:', e);

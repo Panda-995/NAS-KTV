@@ -1,9 +1,15 @@
-import { exists, readTextFile, writeTextFile, mkdir, remove } from '@tauri-apps/plugin-fs';
-import { appDataDir, join } from '@tauri-apps/api/path';
+import {
+  BaseDirectory,
+  exists,
+  readTextFile,
+  writeTextFile,
+  remove,
+} from '@tauri-apps/plugin-fs';
 import { isTauri } from '@tauri-apps/api/core';
 
 const CONFIG_FILE = 'backend-config.json';
 const CONFIG_STORAGE_KEY = 'nasktv:backend-config';
+const APP_DATA_OPTIONS = { baseDir: BaseDirectory.AppData } as const;
 
 // 检测当前是否运行在 Tauri 外壳内
 function isTauriEnvironment(): boolean {
@@ -26,26 +32,25 @@ function deriveWsUrl(apiUrl: string): string {
 export async function loadBackendConfig(): Promise<BackendConfig | null> {
   if (isTauriEnvironment()) {
     try {
-      const dataDir = await appDataDir();
-      const filePath = await join(dataDir, CONFIG_FILE);
-      if (await exists(filePath)) {
-        const raw = await readTextFile(filePath);
+      if (await exists(CONFIG_FILE, APP_DATA_OPTIONS)) {
+        const raw = await readTextFile(CONFIG_FILE, APP_DATA_OPTIONS);
         const cfg = JSON.parse(raw) as BackendConfig;
         if (cfg?.apiUrl) return cfg;
       }
     } catch (e) {
       console.error('Failed to load backend config file:', e);
     }
-  } else {
-    try {
-      const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
-      if (raw) {
-        const cfg = JSON.parse(raw) as BackendConfig;
-        if (cfg?.apiUrl) return cfg;
-      }
-    } catch (e) {
-      console.error('Failed to load backend config from localStorage:', e);
+  }
+
+  // Tauri 文件不可用时也必须读取保存阶段写入的 localStorage 回退值。
+  try {
+    const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
+    if (raw) {
+      const cfg = JSON.parse(raw) as BackendConfig;
+      if (cfg?.apiUrl) return cfg;
     }
+  } catch (e) {
+    console.error('Failed to load backend config from localStorage:', e);
   }
 
   // 兜底：构建时配置（浏览器开发 / 反代部署模式）
@@ -66,10 +71,12 @@ export async function saveBackendConfig(apiUrl: string): Promise<BackendConfig> 
   if (isTauriEnvironment()) {
     let fileError: unknown;
     try {
-      const dataDir = await appDataDir();
-      const filePath = await join(dataDir, CONFIG_FILE);
-      await mkdir(dataDir, { recursive: true });
-      await writeTextFile(filePath, JSON.stringify(cfg));
+      await writeTextFile(CONFIG_FILE, JSON.stringify(cfg), APP_DATA_OPTIONS);
+      try {
+        localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(cfg));
+      } catch {
+        // 配置文件已经成功写入，localStorage 仅作为额外回退。
+      }
       return cfg;
     } catch (e) {
       fileError = e;
@@ -98,15 +105,17 @@ export async function saveBackendConfig(apiUrl: string): Promise<BackendConfig> 
 export async function resetBackendConfig(): Promise<void> {
   if (isTauriEnvironment()) {
     try {
-      const dataDir = await appDataDir();
-      const filePath = await join(dataDir, CONFIG_FILE);
-      if (await exists(filePath)) {
-        await remove(filePath);
+      if (await exists(CONFIG_FILE, APP_DATA_OPTIONS)) {
+        await remove(CONFIG_FILE, APP_DATA_OPTIONS);
       }
     } catch (e) {
       console.error('Failed to reset backend config file:', e);
     }
-  } else {
+  }
+
+  try {
     localStorage.removeItem(CONFIG_STORAGE_KEY);
+  } catch (e) {
+    console.error('Failed to reset backend config from localStorage:', e);
   }
 }

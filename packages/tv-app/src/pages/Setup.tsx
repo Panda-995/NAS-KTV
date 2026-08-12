@@ -117,6 +117,7 @@ const genQr = useCallback(async () => {
       try {
         const cfg = await saveBackendConfig(url);
         setConfig(cfg);
+        window.location.hash = '#/';
         window.location.reload();
       } catch (e) {
         // 保存失败时绝不能 reload，否则会陷入「保存失败→再保存」死循环
