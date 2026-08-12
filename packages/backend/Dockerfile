@@ -32,6 +32,7 @@ FROM node:20-alpine AS production
 RUN addgroup --system --gid 1001 nasktv && \
     adduser --system --uid 1001 nasktv
 WORKDIR /app
+ENV NODE_OPTIONS=--no-experimental-require-module
 COPY --from=build --chown=nasktv:nasktv /app/packages/backend/src ./packages/backend/src
 COPY --from=build --chown=nasktv:nasktv /app/packages/backend/assets ./packages/backend/assets
 COPY --from=build --chown=nasktv:nasktv /app/packages/backend/package.json ./packages/backend/
