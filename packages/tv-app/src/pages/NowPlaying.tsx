@@ -600,8 +600,9 @@ export default function NowPlaying() {
         ref={videoRef}
         className={isVideo ? 'np-video-full' : 'hidden'}
         controls={false}
+        crossOrigin="anonymous"
+        preload="auto"
         playsInline
-        muted
         tabIndex={-1}
       />
 

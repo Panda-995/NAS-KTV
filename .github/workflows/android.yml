@@ -71,6 +71,11 @@ jobs:
       - name: Install JS deps
         run: pnpm install --frozen-lockfile
 
+      - name: Test TV configuration and playback routing
+        run: |
+          pnpm --filter @nasktv/backend exec tsx ../tv-app/tests/backend-config.test.ts
+          pnpm --filter @nasktv/backend exec tsx ../tv-app/tests/player-media.test.ts
+
       - name: Sync version to tag
         if: ${{ inputs.tag != '' }}
         shell: bash

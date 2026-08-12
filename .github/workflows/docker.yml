@@ -32,8 +32,33 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  test:
+    name: Validate backend media streaming
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck backend and test media ranges
+        run: |
+          pnpm --filter @nasktv/backend build
+          pnpm --filter @nasktv/backend exec tsx tests/http-range.test.ts
+
   build:
     name: Build ${{ matrix.service.name }} (${{ matrix.architecture.name }})
+    needs: test
     runs-on: ${{ matrix.architecture.runner }}
     strategy:
       fail-fast: false

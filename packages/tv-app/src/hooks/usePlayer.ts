@@ -9,6 +9,7 @@ import {
 } from '@nasktv/shared';
 import { useWebAudio, type ReverbPreset } from './useWebAudio';
 import type { LyricLine } from '../api/songs';
+import { getPlaybackPlan, prepareCrossOriginMedia } from '../lib/player-media';
 import { Play, Pause, Timer, Music, Music2, Mic, Waves, Volume2, Disc3, type LucideIcon } from 'lucide-react';
 
 // 重新导出 LyricLine，保持下游组件（Lyrics.tsx / NowPlaying.tsx）的既有导入路径
@@ -168,46 +169,21 @@ export function usePlayer({
     songId, isPlaying, currentTime, duration, vocalMode, pitch, reverb, reverbPreset, reverbDuration, reverbDecay, vocalAssistVolume, instrumentalVolume, instrumentalAvailable, originalAvailable,
   };
 
-  // 应用声道模式：音频模式走 gain 节点；MV 模式（video 有 src）用 video.muted + 分离轨补声
-  // 伴奏轨不可用（未分离/404）时自动降级为原声轨
+  // 原唱 MV 直接使用 video 自带音轨，避免 Android WebView 的 AudioContext
+  // 被自动播放策略挂起时出现有画面无声音；伴奏/伴唱才启用分离音轨。
   const applyVocalMode = useCallback((mode: VocalMode, vol: number, insVol: number, insOk: boolean, origOk: boolean) => {
     const video = videoRef?.current;
-    const isMV = !!video?.src;
-
-    if (isMV) {
-      // MV：video 默认静音，只出画面；声音全部走 audio 轨（DSP 链，混响/变调统一生效）。
-      // 原声 = 完整混音轨（audioOriginal）；伴奏/伴唱 = 分离轨补声；
-      // 分离轨缺失（未分离/404）时自动降级：原声轨发声，保证始终正常播放
-      video.muted = true;
-      if (mode === 'original') {
-        setOriginalGain(1.0);
-        setInstrumentalGain(0.0);
-      } else if (mode === 'instrumental') {
-        setOriginalGain(insOk ? 0.0 : 1.0);
-        setInstrumentalGain(insOk ? insVol : 0.0);
-      } else {
-        // vocal_assist：需要 vocals + instrumental 都可用，否则降级原声
-        const canAssist = insOk && origOk;
-        setOriginalGain(canAssist ? vol : 1.0);
-        setInstrumentalGain(canAssist ? insVol : 0.0);
-      }
-      return;
-    }
-
-    switch (mode) {
-      case 'original':
-        setOriginalGain(1.0);
-        setInstrumentalGain(0.0);
-        break;
-      case 'instrumental':
-        setOriginalGain(insOk ? 0.0 : 1.0);
-        setInstrumentalGain(insOk ? insVol : 0.0);
-        break;
-      case 'vocal_assist':
-        setOriginalGain(insOk ? vol : 1.0);
-        setInstrumentalGain(insOk ? insVol : 0.0);
-        break;
-    }
+    const plan = getPlaybackPlan({
+      hasVideo: !!video?.src,
+      mode,
+      instrumentalAvailable: insOk,
+      vocalsAvailable: origOk,
+      vocalAssistVolume: vol,
+      instrumentalVolume: insVol,
+    });
+    if (video) video.muted = plan.videoMuted;
+    setOriginalGain(plan.originalGain);
+    setInstrumentalGain(plan.instrumentalGain);
   }, [videoRef, setOriginalGain, setInstrumentalGain]);
 
   // 立即广播 PLAYER_STATE（音调/混响/模式变化时调用，不等 1 秒节流）
@@ -215,11 +191,18 @@ export function usePlayer({
   const broadcastPlayerState = useCallback((overrides?: Partial<PlayerStatePayload>) => {
     const s = stateRef.current;
     if (s.songId == null) return;
+    const original = originalAudioRef.current;
+    const instrumental = instrumentalAudioRef.current;
+    const effectiveVocalMode = overrides?.vocalMode ?? s.vocalMode;
     const primary = videoRef?.current?.src
       ? videoRef.current
-      : originalAudioRef.current?.src
-        ? originalAudioRef.current
-        : null;
+      : effectiveVocalMode === 'instrumental' && s.instrumentalAvailable && instrumental?.src
+        ? instrumental
+        : original?.src
+          ? original
+          : instrumental?.src
+            ? instrumental
+            : null;
     const currentTime = primary ? primary.currentTime : s.currentTime;
     const isPlaying = primary ? !primary.paused : s.isPlaying;
     // duration 优先读媒体元素真实值：切歌瞬间 state 仍是旧歌时长，直接读 primary 避免广播旧时长
@@ -249,20 +232,49 @@ export function usePlayer({
   // 尝试播放全部媒体元素（含 AudioContext 恢复）。主媒体播放成功即视为成功；
   // 全部失败时广播 paused 并定时重试（自动播放策略/音频焦点等瞬态问题），
   // 保证 TV 重启后能自愈恢复播放，H5 端状态同步与控制不再永久失效。
-  const tryPlayMedia = useCallback(() => {
+  const tryPlayMedia = useCallback((modeOverride?: VocalMode) => {
     // 恢复 AudioContext（自动播放策略下可能 suspended；无手势时 resume 可能被拒，重试期间持续尝试）
-    audioContext?.resume();
+    void audioContext?.resume().catch(() => {});
     const o = originalAudioRef.current;
     const ins = instrumentalAudioRef.current;
     const video = videoRef?.current;
+    const s = stateRef.current;
+    const plan = getPlaybackPlan({
+      hasVideo: !!video?.src,
+      mode: modeOverride ?? s.vocalMode,
+      instrumentalAvailable: instrumentalOkRef.current,
+      vocalsAvailable: originalOkRef.current,
+      vocalAssistVolume: s.vocalAssistVolume,
+      instrumentalVolume: s.instrumentalVolume,
+    });
+    if (video) video.muted = plan.videoMuted;
+    setOriginalGain(plan.originalGain);
+    setInstrumentalGain(plan.instrumentalGain);
+
     const plays: Promise<boolean>[] = [];
-    if (o?.src) plays.push(o.play().then(() => true).catch(() => false));
-    if (ins?.src) plays.push(ins.play().then(() => true).catch(() => false));
+    if (o?.src && plan.playOriginal) {
+      plays.push(o.play().then(() => true).catch(() => false));
+    } else {
+      o?.pause();
+    }
+    if (ins?.src && plan.playInstrumental) {
+      plays.push(ins.play().then(() => true).catch(() => false));
+    } else {
+      ins?.pause();
+    }
     if (video?.src) plays.push(video.play().then(() => true).catch(() => false));
     if (plays.length === 0) return;
 
-    Promise.all(plays).then((results) => {
-      const primary = video?.src ? video : o?.src ? o : ins?.src ? ins : null;
+    Promise.all(plays).then(() => {
+      const primary = video?.src
+        ? video
+        : plan.playInstrumental && !plan.playOriginal && ins?.src
+          ? ins
+          : o?.src
+            ? o
+            : ins?.src
+              ? ins
+              : null;
       const primaryPlaying = primary ? !primary.paused && !primary.ended : false;
       if (primaryPlaying) {
         clearPlayRetry();
@@ -280,12 +292,14 @@ export function usePlayer({
         tryPlayMedia();
       }, PLAY_RETRY_INTERVAL_MS);
     });
-  }, [audioContext, videoRef, broadcastPlayerState, clearPlayRetry]);
+  }, [audioContext, videoRef, broadcastPlayerState, clearPlayRetry, setOriginalGain, setInstrumentalGain]);
 
   // 初始化：创建双 audio 元素 + 初始化 Web Audio 节点链 + 事件监听
   useEffect(() => {
     const originalAudio = new Audio();
     const instrumentalAudio = new Audio();
+    prepareCrossOriginMedia(originalAudio);
+    prepareCrossOriginMedia(instrumentalAudio);
     originalAudioRef.current = originalAudio;
     instrumentalAudioRef.current = instrumentalAudio;
 
@@ -294,6 +308,14 @@ export function usePlayer({
     // 主媒体（用于 time/duration 跟踪）：优先 video，其次原声，无原声时用伴奏
     const getPrimary = (): HTMLMediaElement | null => {
       if (videoRef?.current?.src) return videoRef.current;
+      const s = stateRef.current;
+      if (
+        s.vocalMode === 'instrumental' &&
+        s.instrumentalAvailable &&
+        instrumentalAudio.src
+      ) {
+        return instrumentalAudio;
+      }
       if (originalAudio.src) return originalAudio;
       if (instrumentalAudio.src) return instrumentalAudio;
       return null;
@@ -369,7 +391,6 @@ export function usePlayer({
       setInstrumentalAvailable(false);
     };
     instrumentalAudio.addEventListener('error', handleInstrumentalError);
-    instrumentalAudio.addEventListener('stalled', handleInstrumentalError);
 
     // 原声轨（MV 模式 vocals）加载失败（未分离/404）：MV 下伴奏/伴唱无法补声 → 降级视频原声
     const handleOriginalError = () => {
@@ -378,7 +399,6 @@ export function usePlayer({
       setOriginalAvailable(false);
     };
     originalAudio.addEventListener('error', handleOriginalError);
-    originalAudio.addEventListener('stalled', handleOriginalError);
 
     return () => {
       medias.forEach((m) => {
@@ -394,9 +414,7 @@ export function usePlayer({
         }
       });
       instrumentalAudio.removeEventListener('error', handleInstrumentalError);
-      instrumentalAudio.removeEventListener('stalled', handleInstrumentalError);
       originalAudio.removeEventListener('error', handleOriginalError);
-      originalAudio.removeEventListener('stalled', handleOriginalError);
       destroyWebAudio();
       clearPlayRetry();
     };
@@ -528,9 +546,8 @@ export function usePlayer({
     setOriginalAvailable(vocalsOkByData);
 
     if (videoSrc && video) {
+      prepareCrossOriginMedia(video);
       video.src = videoSrc;
-      // 画面轨永不出声（声音走 audio DSP 链）
-      video.muted = true;
     } else if (video) {
       video.removeAttribute('src');
       video.load();
@@ -543,6 +560,13 @@ export function usePlayer({
     // 数据未知 → 先视为可用，加载失败（404/网络）时由 error 事件兜底降级
     instrumentalOkRef.current = shouldLoadInstrumental;
     setInstrumentalAvailable(shouldLoadInstrumental);
+    applyVocalMode(
+      stateRef.current.vocalMode,
+      stateRef.current.vocalAssistVolume,
+      stateRef.current.instrumentalVolume,
+      shouldLoadInstrumental,
+      vocalsOkByData,
+    );
 
     // 切歌后自动播放：手机点歌 / 遥控跳过 / 队列推进均需自动续播（KTV 场景）。
     // 播放失败不静默：全部媒体均失败时同步 isPlaying=false 并广播 paused，
@@ -551,7 +575,7 @@ export function usePlayer({
     tryPlayMedia();
     // 切歌立即广播一次（不等 1s 定时器）：所有在线用户马上看到新歌与真实进度，避免"部分用户不更新"
     broadcastPlayerState();
-  }, [audioOriginal, audioInstrumental, videoSrc, videoRef, audioContext, setWebAudioPitch, vocalsFileAvailable, instrumentalFileAvailable, broadcastPlayerState, tryPlayMedia, clearPlayRetry]);
+  }, [audioOriginal, audioInstrumental, videoSrc, videoRef, audioContext, setWebAudioPitch, vocalsFileAvailable, instrumentalFileAvailable, broadcastPlayerState, tryPlayMedia, clearPlayRetry, applyVocalMode]);
 
   // isReady 后 / 模式变化 / 人声辅助音量 / 伴奏音量 / 分离轨可用性 变化时应用 gain
   useEffect(() => {
@@ -703,9 +727,10 @@ export function usePlayer({
     setVocalMode(mode);
     // 立即应用 gain（不等 effect）
     applyVocalMode(mode, stateRef.current.vocalAssistVolume, stateRef.current.instrumentalVolume, stateRef.current.instrumentalAvailable, stateRef.current.originalAvailable);
+    if (stateRef.current.isPlaying) tryPlayMedia(mode);
     // 立即广播模式变化
     broadcastPlayerState({ vocalMode: mode });
-  }, [applyVocalMode, broadcastPlayerState]);
+  }, [applyVocalMode, tryPlayMedia, broadcastPlayerState]);
 
   // 变调（-12~+12 半音）：走 Web Audio WSOLA 不变速变调（SoundTouch worklet）
   // 原调零延迟旁路；worklet 注册失败时 useWebAudio 内部降级为 playbackRate

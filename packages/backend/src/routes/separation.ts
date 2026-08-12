@@ -15,6 +15,7 @@ import {
 import { parseLRC, readLyricsFile } from '../services/lyrics-parser';
 import { config } from '../config';
 import { getSeparationModel } from '../services/scanner';
+import { parseByteRange } from '../utils/http-range';
 
 const router = Router();
 
@@ -470,17 +471,8 @@ function streamAudioFile(
   const contentType = mimeMap[ext] || 'audio/mpeg';
 
   if (range) {
-    // 解析 Range: bytes=start-end
-    const match = /bytes=(\d*)-(\d*)/.exec(range);
-    if (!match) {
-      res.status(416).json({ success: false, error: 'Invalid range' });
-      return true;
-    }
-
-    const start = match[1] ? parseInt(match[1], 10) : 0;
-    const end = match[2] ? parseInt(match[2], 10) : fileSize - 1;
-
-    if (start >= fileSize || end >= fileSize || start > end) {
+    const parsedRange = parseByteRange(range, fileSize);
+    if (!parsedRange) {
       res
         .status(416)
         .set('Content-Range', `bytes */${fileSize}`)
@@ -488,6 +480,7 @@ function streamAudioFile(
       return true;
     }
 
+    const { start, end } = parsedRange;
     const chunkSize = end - start + 1;
     const stream = fs.createReadStream(resolvedPath, { start, end });
 
@@ -496,6 +489,7 @@ function streamAudioFile(
       'Accept-Ranges': 'bytes',
       'Content-Length': chunkSize.toString(),
       'Content-Type': contentType,
+      'Cross-Origin-Resource-Policy': 'cross-origin',
     });
 
     stream.pipe(res);
@@ -513,6 +507,7 @@ function streamAudioFile(
     'Content-Length': fileSize.toString(),
     'Content-Type': contentType,
     'Accept-Ranges': 'bytes',
+    'Cross-Origin-Resource-Policy': 'cross-origin',
   });
 
   const stream = fs.createReadStream(resolvedPath);
@@ -653,12 +648,18 @@ router.get('/songs/:id/lyrics', async (req: Request, res: Response) => {
       throw createAppError('Song not found', 404);
     }
 
+    const lyricsPath = song.lyricsPath
+      ? path.isAbsolute(song.lyricsPath)
+        ? song.lyricsPath
+        : path.resolve(config.projectRoot, song.lyricsPath)
+      : null;
+
     // 无歌词路径或文件不存在则返回空结果（不报错）
-    if (!song.lyricsPath || !fs.existsSync(song.lyricsPath)) {
+    if (!lyricsPath || !fs.existsSync(lyricsPath)) {
       return res.json({ success: true, data: { lines: [], wordTiming: false } });
     }
 
-    const content = readLyricsFile(song.lyricsPath);
+    const content = readLyricsFile(lyricsPath);
     const result = parseLRC(content);
     res.json({ success: true, data: result });
   } catch (error) {

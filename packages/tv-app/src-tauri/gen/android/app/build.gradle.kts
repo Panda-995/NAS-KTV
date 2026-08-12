@@ -17,7 +17,7 @@ android {
     compileSdk = 36
     namespace = "com.nasktv.tvapp"
     defaultConfig {
-        manifestPlaceholders["usesCleartextTraffic"] = "false"
+        manifestPlaceholders["usesCleartextTraffic"] = "true"
         applicationId = "com.nasktv.tvapp"
         minSdk = 24
         targetSdk = 36
@@ -26,7 +26,6 @@ android {
     }
     buildTypes {
         getByName("debug") {
-            manifestPlaceholders["usesCleartextTraffic"] = "true"
             isDebuggable = true
             isJniDebuggable = true
             isMinifyEnabled = false

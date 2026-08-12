@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "build": "tsc --noEmit --rootDir ../..",
+    "build": "tsc --noEmit --rootDir ../.. --declaration false --declarationMap false",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx -e \"import { runMigrations } from './src/db/migrate'; runMigrations(); console.log('Done'); process.exit(0);\"",
