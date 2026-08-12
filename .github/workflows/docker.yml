@@ -1,19 +1,5 @@
-# Build & push NASKTV Docker images (backend / separator / web)
-#
-# Reusable workflow: call from release.yml (with `tag`), or dispatch manually.
-#
-# Required repo/environment secrets:
-#   ALIYUN_ACR_REGISTRY   e.g. registry.cn-hangzhou.aliyuncs.com
-#   ALIYUN_ACR_USERNAME   ACR login username (usually RAM AccessKeyId)
-#   ALIYUN_ACR_PASSWORD   ACR login password (usually RAM AccessKeySecret)
-#   ALIYUN_ACR_NAMESPACE  image namespace, e.g. nasktv
-#
-# Images are pushed to a SINGLE repository, distinguished by tag prefix:
-#   <REGISTRY>/<NAMESPACE>/nasktv:backend-<semver>
-#   <REGISTRY>/<NAMESPACE>/nasktv:separator-<semver>
-#   <REGISTRY>/<NAMESPACE>/nasktv:web-<semver>
-# Each also gets a <service>-<major>.<minor> tag (e.g. backend-0.2).
-# Multi-arch: linux/amd64 + linux/arm64 (separator is CPU torch, safe for both).
+# Build and publish the three Docker Compose images to GitHub Container Registry.
+# Every tag is a multi-platform manifest for linux/amd64 and linux/arm64.
 
 name: Build Docker Images
 
@@ -26,9 +12,24 @@ on:
   workflow_dispatch:
     inputs:
       tag:
+        description: 'Optional release tag (for example v0.2.0)'
         type: string
         default: ''
         required: false
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: docker-${{ github.ref }}-${{ inputs.tag }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
 
 jobs:
   build:
@@ -40,12 +41,15 @@ jobs:
           - name: backend
             context: .
             dockerfile: packages/backend/Dockerfile
+            image: nas-ktv-backend
           - name: separator
             context: packages/separator
             dockerfile: packages/separator/Dockerfile
+            image: nas-ktv-separator
           - name: web
             context: .
             dockerfile: packages/web/Dockerfile
+            image: nas-ktv-web
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,27 +60,49 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Aliyun ACR
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ${{ secrets.ALIYUN_ACR_REGISTRY }}
-          username: ${{ secrets.ALIYUN_ACR_USERNAME }}
-          password: ${{ secrets.ALIYUN_ACR_PASSWORD }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compute image tags
         id: tags
         env:
-          REGISTRY: ${{ secrets.ALIYUN_ACR_REGISTRY }}
-          NAMESPACE: ${{ secrets.ALIYUN_ACR_NAMESPACE }}
-          TAG: ${{ inputs.tag || github.ref_name }}
+          IMAGE_NAME: ${{ matrix.image }}
+          REQUESTED_TAG: ${{ inputs.tag }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         shell: bash
         run: |
-          VER="${TAG#v}"
-          BASE="${REGISTRY}/${NAMESPACE}/nasktv"
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          IMAGE="${REGISTRY}/${OWNER}/${IMAGE_NAME}"
+          RELEASE_TAG="${REQUESTED_TAG}"
+          if [[ -z "${RELEASE_TAG}" && "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            RELEASE_TAG="${GITHUB_REF_NAME}"
+          fi
+
+          TAGS=()
+          if [[ -n "${RELEASE_TAG}" ]]; then
+            VERSION="${RELEASE_TAG#v}"
+            if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+              echo "Expected a semantic version tag such as v0.2.0, got: ${RELEASE_TAG}" >&2
+              exit 1
+            fi
+            TAGS+=("${IMAGE}:${VERSION}")
+            TAGS+=("${IMAGE}:$(cut -d. -f1,2 <<< "${VERSION}")")
+            TAGS+=("${IMAGE}:latest")
+          elif [[ "${GITHUB_REF_NAME}" == "${DEFAULT_BRANCH}" ]]; then
+            TAGS+=("${IMAGE}:latest")
+            TAGS+=("${IMAGE}:sha-${GITHUB_SHA::12}")
+          else
+            TAGS+=("${IMAGE}:sha-${GITHUB_SHA::12}")
+          fi
+
           {
+            echo "image=${IMAGE}"
             echo "tags<<EOF"
-            echo "${BASE}:${{ matrix.name }}-${VER}"
-            echo "${BASE}:${{ matrix.name }}-${VER%.*}"
+            printf '%s\n' "${TAGS[@]}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
@@ -88,5 +114,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.tags.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=NASKTV ${{ matrix.name }}
+            org.opencontainers.image.licenses=MIT
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}

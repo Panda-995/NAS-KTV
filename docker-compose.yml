@@ -1,9 +1,8 @@
 services:
   # ==================== 后端 API + WebSocket ====================
   backend:
-    build:
-      context: .
-      dockerfile: packages/backend/Dockerfile
+    image: ghcr.io/panda-995/nas-ktv-backend:${NASKTV_IMAGE_TAG:-latest}
+    pull_policy: always
     ports:
       - "3000:3000"
       - "45678:45678/udp"
@@ -42,9 +41,8 @@ services:
 
   # ==================== 人声分离微服务（Python + Demucs）====================
   separator:
-    build:
-      context: ./packages/separator
-      dockerfile: Dockerfile
+    image: ghcr.io/panda-995/nas-ktv-separator:${NASKTV_IMAGE_TAG:-latest}
+    pull_policy: always
     container_name: nasktv-separator
     volumes:
       - ./data/songs:/app/data/songs:ro
@@ -56,20 +54,12 @@ services:
       - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
       - SEPARATION_CONCURRENCY=${SEPARATION_CONCURRENCY:-2}
       - PYTORCH_INDEX_URL=${PYTORCH_INDEX_URL:-https://download.pytorch.org/whl/cu124}
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     restart: unless-stopped
 
   # ==================== 前端（admin-web + mobile-h5 合并托管 + 反代）====================
   web:
-    build:
-      context: .
-      dockerfile: packages/web/Dockerfile
+    image: ghcr.io/panda-995/nas-ktv-web:${NASKTV_IMAGE_TAG:-latest}
+    pull_policy: always
     ports:
       - "8080:80"
     depends_on:
