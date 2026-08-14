@@ -97,89 +97,116 @@ export function useWebAudio(): UseWebAudioReturn {
     const ctx = new Ctor();
     ctxRef.current = ctx;
 
-    originalAudioRef.current = originalAudio;
-    instrumentalAudioRef.current = instrumentalAudio;
+    const finishInit = () => {
+      if (ctxRef.current !== ctx || ctx.state !== 'running') return;
 
-    // MediaElementAudioSourceNode 一次性创建并复用
-    const originalSource = ctx.createMediaElementSource(originalAudio);
-    const instrumentalSource = ctx.createMediaElementSource(instrumentalAudio);
-    originalSourceRef.current = originalSource;
-    instrumentalSourceRef.current = instrumentalSource;
+      originalAudioRef.current = originalAudio;
+      instrumentalAudioRef.current = instrumentalAudio;
 
-    // 变调降级路径：playbackRate 需要浏览器做音调偏移（preservesPitch=false 时变速即变调）
-    originalAudio.preservesPitch = false;
-    instrumentalAudio.preservesPitch = false;
+      // 只在 AudioContext 确认 running 后接管媒体输出。
+      // suspended 状态下提前创建 source 会让 Android WebView 自动播放无声。
+      const originalSource = ctx.createMediaElementSource(originalAudio);
+      const instrumentalSource = ctx.createMediaElementSource(instrumentalAudio);
+      originalSourceRef.current = originalSource;
+      instrumentalSourceRef.current = instrumentalSource;
 
-    // 两个 source 各自的音量控制
-    const originalGain = ctx.createGain();
-    const instrumentalGain = ctx.createGain();
-    // 用 GainNode 做 merger（多个 source 连到同一输入）
-    const merger = ctx.createGain();
+      // 变调降级路径：playbackRate 需要浏览器做音调偏移（preservesPitch=false 时变速即变调）
+      originalAudio.preservesPitch = false;
+      instrumentalAudio.preservesPitch = false;
 
-    // dry 通道
-    const dryGain = ctx.createGain();
-    dryGain.gain.value = 1;
+      // 两个 source 各自的音量控制
+      const originalGain = ctx.createGain();
+      const instrumentalGain = ctx.createGain();
+      // 用 GainNode 做 merger（多个 source 连到同一输入）
+      const merger = ctx.createGain();
 
-    originalGainRef.current = originalGain;
-    instrumentalGainRef.current = instrumentalGain;
-    mergerRef.current = merger;
-    dryGainRef.current = dryGain;
+      // dry 通道
+      const dryGain = ctx.createGain();
+      dryGain.gain.value = 1;
 
-    // 连接节点链（原调直通）：source → gain → merger → [dryGain + convolver→wetGain] → destination
-    originalSource.connect(originalGain);
-    instrumentalSource.connect(instrumentalGain);
-    originalGain.connect(merger);
-    instrumentalGain.connect(merger);
+      originalGainRef.current = originalGain;
+      instrumentalGainRef.current = instrumentalGain;
+      mergerRef.current = merger;
+      dryGainRef.current = dryGain;
 
-    // 创建 AnalyserNode 用于可视化（并行连接到 merger，不影响主链路）
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 128;
-    analyser.smoothingTimeConstant = 0.8;
-    merger.connect(analyser);
-    analyserRef.current = analyser;
+      // 连接节点链（原调直通）：source → gain → merger → [dryGain + convolver→wetGain] → destination
+      originalSource.connect(originalGain);
+      instrumentalSource.connect(instrumentalGain);
+      originalGain.connect(merger);
+      instrumentalGain.connect(merger);
 
-    merger.connect(dryGain);
-    dryGain.connect(ctx.destination);
+      // 创建 AnalyserNode 用于可视化（并行连接到 merger，不影响主链路）
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 128;
+      analyser.smoothingTimeConstant = 0.8;
+      merger.connect(analyser);
+      analyserRef.current = analyser;
 
-    // wet 通道（混响）：混响为音频效果，与动画偏好无关，始终创建（wet 默认 0 即纯 dry）
-    {
-      const convolver = ctx.createConvolver();
-      const wetGain = ctx.createGain();
-      wetGain.gain.value = 0; // 默认完全 dry
-      // 默认加载 hall 预设 IR 备用
-      convolver.buffer = createImpulseResponse(
-        ctx,
-        REVERB_PRESETS.hall.duration,
-        REVERB_PRESETS.hall.decay,
-      );
-      merger.connect(convolver);
-      convolver.connect(wetGain);
-      wetGain.connect(ctx.destination);
-      convolverRef.current = convolver;
-      wetGainRef.current = wetGain;
+      merger.connect(dryGain);
+      dryGain.connect(ctx.destination);
+
+      // wet 通道（混响）：混响为音频效果，与动画偏好无关，始终创建（wet 默认 0 即纯 dry）
+      {
+        const convolver = ctx.createConvolver();
+        const wetGain = ctx.createGain();
+        wetGain.gain.value = 0; // 默认完全 dry
+        // 默认加载 hall 预设 IR 备用
+        convolver.buffer = createImpulseResponse(
+          ctx,
+          REVERB_PRESETS.hall.duration,
+          REVERB_PRESETS.hall.decay,
+        );
+        merger.connect(convolver);
+        convolver.connect(wetGain);
+        wetGain.connect(ctx.destination);
+        convolverRef.current = convolver;
+        wetGainRef.current = wetGain;
+      }
+
+      setIsReady(true);
+
+      // 异步注册 SoundTouch worklet（WSOLA 不变速变调）；失败静默 → 降级 playbackRate
+      void (async () => {
+        try {
+          await SoundTouchNode.register(ctx, processorUrl);
+          if (ctxRef.current !== ctx) return; // 注册期间已被 destroy，放弃（避免在关闭的 context 上建节点）
+          const stOrig = new SoundTouchNode({ context: ctx });
+          const stIns = new SoundTouchNode({ context: ctx });
+          stOrig.pitchSemitones.value = 0;
+          stIns.pitchSemitones.value = 0;
+          // 源 → worklet 常驻连接（setPitch 时切换其输出路由），原调时输出断开（旁路）
+          originalSource.connect(stOrig);
+          instrumentalSource.connect(stIns);
+          stOrigRef.current = stOrig;
+          stInsRef.current = stIns;
+          pitchShiftReadyRef.current = true;
+        } catch {
+          pitchShiftReadyRef.current = false;
+        }
+      })();
+    };
+
+    if (ctx.state === 'running') {
+      finishInit();
+      return;
     }
 
-    setIsReady(true);
-
-    // 异步注册 SoundTouch worklet（WSOLA 不变速变调）；失败静默 → 降级 playbackRate
-    void (async () => {
-      try {
-        await SoundTouchNode.register(ctx, processorUrl);
-        if (ctxRef.current !== ctx) return; // 注册期间已被 destroy，放弃（避免在关闭的 context 上建节点）
-        const stOrig = new SoundTouchNode({ context: ctx });
-        const stIns = new SoundTouchNode({ context: ctx });
-        stOrig.pitchSemitones.value = 0;
-        stIns.pitchSemitones.value = 0;
-        // 源 → worklet 常驻连接（setPitch 时切换其输出路由），原调时输出断开（旁路）
-        originalSource.connect(stOrig);
-        instrumentalSource.connect(stIns);
-        stOrigRef.current = stOrig;
-        stInsRef.current = stIns;
-        pitchShiftReadyRef.current = true;
-      } catch {
-        pitchShiftReadyRef.current = false;
-      }
-    })();
+    // resume() 必须在 keydown/pointerdown 调用栈内发起。失败时不接管
+    // HTMLMediaElement，保留可自动播放的直连兜底。
+    void ctx
+      .resume()
+      .then(() => {
+        if (ctx.state === 'running') {
+          finishInit();
+          return;
+        }
+        if (ctxRef.current === ctx) ctxRef.current = null;
+        void ctx.close().catch(() => {});
+      })
+      .catch(() => {
+        if (ctxRef.current === ctx) ctxRef.current = null;
+        void ctx.close().catch(() => {});
+      });
   }, []);
 
   /** 设置原声轨道音量（0~1） */

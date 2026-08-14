@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  applyPlaybackLevels,
   getPlaybackPlan,
   prepareCrossOriginMedia,
 } from '../src/lib/player-media.ts';
@@ -63,6 +64,42 @@ const instrumentalAudio = getPlaybackPlan({
 assert.equal(instrumentalAudio.playOriginal, false);
 assert.equal(instrumentalAudio.playInstrumental, true);
 assert.equal(instrumentalAudio.instrumentalGain, 0.7);
+
+const directOriginal = { volume: 1 };
+const directInstrumental = { volume: 1 };
+let webOriginalGain: number | null = null;
+let webInstrumentalGain: number | null = null;
+applyPlaybackLevels(instrumentalAudio, {
+  webAudioReady: false,
+  originalMedia: directOriginal,
+  instrumentalMedia: directInstrumental,
+  setOriginalGain: value => {
+    webOriginalGain = value;
+  },
+  setInstrumentalGain: value => {
+    webInstrumentalGain = value;
+  },
+});
+assert.equal(directOriginal.volume, 0);
+assert.equal(directInstrumental.volume, 0.7);
+assert.equal(webOriginalGain, null);
+assert.equal(webInstrumentalGain, null);
+
+applyPlaybackLevels(instrumentalAudio, {
+  webAudioReady: true,
+  originalMedia: directOriginal,
+  instrumentalMedia: directInstrumental,
+  setOriginalGain: value => {
+    webOriginalGain = value;
+  },
+  setInstrumentalGain: value => {
+    webInstrumentalGain = value;
+  },
+});
+assert.equal(directOriginal.volume, 1);
+assert.equal(directInstrumental.volume, 1);
+assert.equal(webOriginalGain, 0);
+assert.equal(webInstrumentalGain, 0.7);
 
 const media = { crossOrigin: null, preload: '' };
 prepareCrossOriginMedia(media);

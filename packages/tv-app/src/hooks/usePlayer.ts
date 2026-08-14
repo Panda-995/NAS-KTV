@@ -9,7 +9,11 @@ import {
 } from '@nasktv/shared';
 import { useWebAudio, type ReverbPreset } from './useWebAudio';
 import type { LyricLine } from '../api/songs';
-import { getPlaybackPlan, prepareCrossOriginMedia } from '../lib/player-media';
+import {
+  applyPlaybackLevels,
+  getPlaybackPlan,
+  prepareCrossOriginMedia,
+} from '../lib/player-media';
 import { Play, Pause, Timer, Music, Music2, Mic, Waves, Volume2, Disc3, type LucideIcon } from 'lucide-react';
 
 // 重新导出 LyricLine，保持下游组件（Lyrics.tsx / NowPlaying.tsx）的既有导入路径
@@ -182,9 +186,14 @@ export function usePlayer({
       instrumentalVolume: insVol,
     });
     if (video) video.muted = plan.videoMuted;
-    setOriginalGain(plan.originalGain);
-    setInstrumentalGain(plan.instrumentalGain);
-  }, [videoRef, setOriginalGain, setInstrumentalGain]);
+    applyPlaybackLevels(plan, {
+      webAudioReady: isReady,
+      originalMedia: originalAudioRef.current,
+      instrumentalMedia: instrumentalAudioRef.current,
+      setOriginalGain,
+      setInstrumentalGain,
+    });
+  }, [videoRef, isReady, setOriginalGain, setInstrumentalGain]);
 
   // 立即广播 PLAYER_STATE（音调/混响/模式变化时调用，不等 1 秒节流）
   // currentTime / status 从真实媒体元素读取，保证暂停/seek 后广播准确（H5 遥控实时同步）
@@ -248,8 +257,13 @@ export function usePlayer({
       instrumentalVolume: s.instrumentalVolume,
     });
     if (video) video.muted = plan.videoMuted;
-    setOriginalGain(plan.originalGain);
-    setInstrumentalGain(plan.instrumentalGain);
+    applyPlaybackLevels(plan, {
+      webAudioReady: isReady,
+      originalMedia: o,
+      instrumentalMedia: ins,
+      setOriginalGain,
+      setInstrumentalGain,
+    });
 
     const plays: Promise<boolean>[] = [];
     if (o?.src && plan.playOriginal) {
@@ -292,7 +306,7 @@ export function usePlayer({
         tryPlayMedia();
       }, PLAY_RETRY_INTERVAL_MS);
     });
-  }, [audioContext, videoRef, broadcastPlayerState, clearPlayRetry, setOriginalGain, setInstrumentalGain]);
+  }, [audioContext, videoRef, broadcastPlayerState, clearPlayRetry, isReady, setOriginalGain, setInstrumentalGain]);
 
   // 初始化：创建双 audio 元素 + 初始化 Web Audio 节点链 + 事件监听
   useEffect(() => {
@@ -300,10 +314,10 @@ export function usePlayer({
     const instrumentalAudio = new Audio();
     prepareCrossOriginMedia(originalAudio);
     prepareCrossOriginMedia(instrumentalAudio);
+    originalAudio.preservesPitch = false;
+    instrumentalAudio.preservesPitch = false;
     originalAudioRef.current = originalAudio;
     instrumentalAudioRef.current = instrumentalAudio;
-
-    initWebAudio(originalAudio, instrumentalAudio);
 
     // 主媒体（用于 time/duration 跟踪）：优先 video，其次原声，无原声时用伴奏
     const getPrimary = (): HTMLMediaElement | null => {
@@ -418,7 +432,25 @@ export function usePlayer({
       destroyWebAudio();
       clearPlayRetry();
     };
-  }, [initWebAudio, destroyWebAudio, videoRef, clearPlayRetry]);
+  }, [destroyWebAudio, videoRef, clearPlayRetry]);
+
+  // Android WebView 的媒体自动播放设置不会自动解锁 Web Audio。
+  // 默认保持 HTMLMediaElement 直连播放；只在 TV 本地真实交互时初始化音效链。
+  useEffect(() => {
+    if (isReady) return;
+    const unlockWebAudio = () => {
+      const originalAudio = originalAudioRef.current;
+      const instrumentalAudio = instrumentalAudioRef.current;
+      if (!originalAudio || !instrumentalAudio) return;
+      initWebAudio(originalAudio, instrumentalAudio);
+    };
+    window.addEventListener('keydown', unlockWebAudio, true);
+    window.addEventListener('pointerdown', unlockWebAudio, true);
+    return () => {
+      window.removeEventListener('keydown', unlockWebAudio, true);
+      window.removeEventListener('pointerdown', unlockWebAudio, true);
+    };
+  }, [initWebAudio, isReady]);
 
   // TV 启动时队列快照可能晚于页面挂载：首次 effect 执行时 <video> 尚不存在。
   // 随 videoSrc 独立绑定主视频事件，确保自动播放、遥控暂停/恢复和进度状态都能驱动 UI。
@@ -492,7 +524,9 @@ export function usePlayer({
         ? videoRef.current
         : originalAudioRef.current?.src
           ? originalAudioRef.current
-          : null;
+          : instrumentalAudioRef.current?.src
+            ? instrumentalAudioRef.current
+            : null;
       if (!primary?.src) return;
       clearPlayRetry();
       tryPlayMedia();
@@ -577,11 +611,10 @@ export function usePlayer({
     broadcastPlayerState();
   }, [audioOriginal, audioInstrumental, videoSrc, videoRef, audioContext, setWebAudioPitch, vocalsFileAvailable, instrumentalFileAvailable, broadcastPlayerState, tryPlayMedia, clearPlayRetry, applyVocalMode]);
 
-  // isReady 后 / 模式变化 / 人声辅助音量 / 伴奏音量 / 分离轨可用性 变化时应用 gain
+  // 模式、音量或分离轨可用性变化时，同步直连媒体音量或 Web Audio gain。
   useEffect(() => {
-    if (!isReady) return;
     applyVocalMode(vocalMode, vocalAssistVolume, instrumentalVolume, instrumentalAvailable, originalAvailable);
-  }, [isReady, vocalMode, vocalAssistVolume, instrumentalVolume, instrumentalAvailable, originalAvailable, applyVocalMode]);
+  }, [vocalMode, vocalAssistVolume, instrumentalVolume, instrumentalAvailable, originalAvailable, applyVocalMode]);
 
   // MV 伴唱轨切换：伴唱模式把 original 轨切到 vocals 分离文件；
   // vocals 不可用（无分离/404）时切回混音轨 → 配合 applyVocalMode 降级为原声，保证正常播放
